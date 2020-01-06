@@ -1,0 +1,33 @@
+{
+  "name": "notes-ittybam-challenge",
+  "version": "1.0.0",
+  "description": "D. France said he needed somewhere to store his thoughts",
+  "main": "server.js",
+  "dependencies": {
+    "cookie-parser": "^1.4.4",
+    "cors": "^2.8.5",
+    "express": "^4.17.1",
+    "helmet": "^3.21.2",
+    "mongoose": "^5.8.4"
+  },
+  "devDependencies": {
+    "concurrently": "^5.0.2",
+    "nodemon": "^2.0.2"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
+    "client": "cd client && npm start",
+    "dev": "nodemon server.js"  
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jamesroyston/notes-ittybam-challenge.git"
+  },
+  "author": "James Royston III",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jamesroyston/notes-ittybam-challenge/issues"
+  },
+  "homepage": "https://github.com/jamesroyston/notes-ittybam-challenge#readme"
+}
