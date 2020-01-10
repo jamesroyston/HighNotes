@@ -3,6 +3,11 @@ const bcrypt = require('bcryptjs')
 
 const saltRounds = 10
 
+const NoteSchema = new mongoose.Schema({
+    title: String,
+    description: String,
+}, {timestamps: true})
+
 const UserSchema = new mongoose.Schema({
     username: {
       type: String,
@@ -13,7 +18,7 @@ const UserSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    notes: []
+    notes: [NoteSchema]
 })
 
 UserSchema.pre('save', function(next) {

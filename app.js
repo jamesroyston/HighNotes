@@ -36,7 +36,7 @@ app.use(session({
     }
 }))
 
-// create users
+// POST signup
 app.post('/api/signup', async (req, res) => {
     const { username, password } = req.body
     console.log('asdfasdf', req.body)
@@ -55,7 +55,7 @@ app.post('/api/signup', async (req, res) => {
     }
 })
 
-// login
+// POST login
 app.post('/api/login', (req, res) => {
     console.log(req.body)
     console.log(req.session)
@@ -101,7 +101,7 @@ app.post('/api/login', (req, res) => {
 })
 
 
-// show username / profile if logged in
+// GET username / profile if logged in
 app.get('/api/profile', async (req, res, next) => {
     User.findById(req.session.userId)
         .exec(function (error, user) {
@@ -113,26 +113,32 @@ app.get('/api/profile', async (req, res, next) => {
                     err.status = 400;
                     return next(err);
                 } else {
-                    return res.send(`user: ${user.username}`)
+                    res.json({
+                        username: user.username,
+                        notes: [...user.notes]
+                    })
                 }
             }
         })
 })
 
-// get all users
+// GET all users
 app.get('/api/showallusers', function (req, res) {
-    User.find({}, function (err, users) {
-        var userMap = {};
+    if (req.session) {
+        User.find({}, function (err, users) {
+            var userMap = {};
 
-        users.forEach(function (user) {
-            userMap[user._id] = user.username;
+            users.forEach(function (user) {
+                userMap[user._id] = user.username;
+            });
+
+            res.send(userMap);
         });
-
-        res.send(userMap);
-    });
+    }
+    res.send('sorry, you must log in to see other users')
 })
 
-// logout 
+// GET logout 
 app.get('/api/logout', function (req, res, next) {
     if (req.session) {
         // delete session object
@@ -159,34 +165,60 @@ app.get('/api/logout', function (req, res, next) {
     }
 })
 
-// POST a note to user
+// POST new note to user
 app.post('/api/newnote', function (req, res) {
-    const { title, body } = req.body
-    console.log(title, body)
+    const { title, description } = req.body
     const user = User.findById(req.session.userId)
-        .exec(function (error, user) {
-            if (error) {
-                return next(error);
-            }
+    user.exec(function (error, user) {
+        if (error) {
+            return res.send(error)
+        }
 
+        if (user === null) {
+            var err = new Error('Not logged in!!');
+            err.status = 400;
+            return res.send(err)
+        }
+
+        const note = {
+            title,
+            description
+        }
+
+        user.notes.push(note)
+        console.log(user.notes)
+        user.save()
+        res.send(`user notes updated. here's the notes: ${user.note}`)
+
+    }
+    )
+})
+
+// PATCH update notes
+
+// DELETE hard-delete notes
+app.delete('/api/:noteId', async function (req, res) {
+    console.log(req.params)
+    if (req.session) {
+
+        User.findById(req.session.userId, function (err, user) {
+            console.log(user)
+            if (err) {
+                return res.json({ err: err, gay: 'yup' })
+            }
             if (user === null) {
-                var err = new Error('Not logged in!!');
-                err.status = 400;
-                return next(err);
+                let err = new Error('Not logged in!!')
+                err.status = 400
+                return res.send(err)
             }
-
-            user.notes.push({
-                title,
-                body,
-                createdAt: Date.now(),
-                lastUpdatedAt: Date.now()
-            })
+            console.log('length before', user.notes.length)
+            user.notes = user.notes.filter(note => note._id.toString() !== req.params.noteId.toString())
+            console.log('length after', user.notes.length)
             console.log(user.notes)
             user.save()
-            res.send(`user notes updated. here's the notes: ${user.notes.forEach(val => val)}`)
-
-        }
-        )
+            res.send(`user note deleted`)
+        })
+    }
 })
 
 // serve static assets from client
