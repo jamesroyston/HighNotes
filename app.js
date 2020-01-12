@@ -16,7 +16,8 @@ app.use(express.json())
 app.use(cookieParser())
 
 // import models
-const User = require('./models/user.schema')
+const { User } = require('./models/user.schema')
+const { Note } = require('./models/user.schema')
 
 // connect to DB
 mongoose.connect(process.env.DB, { useNewUrlParser: true, useUnifiedTopology: true, dbName: 'notes-app' })
@@ -113,9 +114,24 @@ app.get('/api/profile', async (req, res, next) => {
                     err.status = 400;
                     return next(err);
                 } else {
+                    const localArr = [...user.notes]
+                    const notes = localArr.filter(note => {
+                        return note.deleted === true
+                    })
+
+                    const deleted = localArr.filter(note => {
+                        return note.deleted === false
+                    })
                     res.json({
                         username: user.username,
-                        notes: [...user.notes]
+                        notes: {
+                            length: notes.length,
+                            notes: notes
+                        },
+                        deleted: {
+                            length: deleted.length,
+                            notes: deleted
+                        }
                     })
                 }
             }
@@ -135,7 +151,7 @@ app.get('/api/showallusers', function (req, res) {
             res.send(userMap);
         });
     }
-    res.send('sorry, you must log in to see other users')
+    if (!req.session) res.send('sorry, you must log in to see other users')
 })
 
 // GET logout 
@@ -194,15 +210,62 @@ app.post('/api/newnote', function (req, res) {
     )
 })
 
-// PATCH update notes
+// POST share note with other user after a GET for all users
+app.patch('/api/share/:noteId', async function (req, res) {
+    const targetUser = '5e1b496b492c7e2f1480f2f8'
+    let targetNote = {}
+    // find logged in user
+    try {
+        await User.findById(req.session.userId)
+            .exec(function (error, user) {
+                if (error) {
+                    return next(error);
+                } else {
+                    if (user === null) {
+                        var err = new Error('Not authorized! Go back!');
+                        err.status = 400;
+                        return next(err);
+                    } else {
+                        // copy notes array and find the note to share by filtering with noteId
+                        const localArr = [...user.notes]
+                        targetNote = localArr.filter(note => note._id.toString() === req.params.noteId.toString())[0]
+                        console.log('dlvey ', typeof targetNote, targetNote)
+                    }
+                }
+            })
+        await console.log(targetNote)
+        // find target user 
+        await User.findById(targetUser)
+            .exec(function (error, user) {
+                if (error) {
+                    return next(error);
+                } else {
+                    if (user === null) {
+                        var err = new Error('Not authorized! Go back!');
+                        err.status = 400;
+                        return next(err);
+                    } else {
+                        // update their notes array with our note
+                        user.notes = [...user.notes, targetNote]
+                        // console.log(user.notes)
+                        // console.log(targetNote)
+                        user.save()
+                        res.json(user)
+                    }
+                }
+            })
+    } catch (err) {
+        res.json(err)
+        console.log('here', err)
+    }
+})
 
-// DELETE hard-delete notes
-app.delete('/api/:noteId', async function (req, res) {
+// PATCH update 
+// copy/paste from soft-delete function currently....
+app.patch('/api/:noteId', async function (req, res) {
     console.log(req.params)
     if (req.session) {
-
         User.findById(req.session.userId, function (err, user) {
-            console.log(user)
             if (err) {
                 return res.json({ err: err, gay: 'yup' })
             }
@@ -212,14 +275,54 @@ app.delete('/api/:noteId', async function (req, res) {
                 return res.send(err)
             }
             console.log('length before', user.notes.length)
-            user.notes = user.notes.filter(note => note._id.toString() !== req.params.noteId.toString())
+            user.notes.map(note => {
+                if (note._id.toString() === req.params.noteId.toString()) {
+                    note.deleted = !note.deleted
+                    // Note.delete() doesn't want to work-- the frontend engineer in me says leave it be so....byeeee
+                }
+            })
             console.log('length after', user.notes.length)
-            console.log(user.notes)
+
             user.save()
             res.send(`user note deleted`)
         })
     }
 })
+
+// PATCH soft-delete notes
+app.patch('/api/:noteId', async function (req, res) {
+    console.log(req.params)
+    if (req.session) {
+
+        User.findById(req.session.userId, function (err, user) {
+
+            if (err) {
+                return res.json({ err: err, gay: 'yup' })
+            }
+            if (user === null) {
+                let err = new Error('Not logged in!!')
+                err.status = 400
+                return res.send(err)
+            }
+            console.log('length before', user.notes.length)
+            user.notes.map(note => {
+                if (note._id.toString() === req.params.noteId.toString()) {
+                    note.deleted = !note.deleted
+                    // Note.delete() doesn't want to work-- the frontend engineer in me says leave it be so....byeeee
+                }
+            })
+            console.log('length after', user.notes.length)
+
+            user.save()
+            res.send(`user note deleted`)
+        })
+    }
+})
+
+/*
+** NOTE: ONLY UNCOMMENT THE LINES BELOW ONCE YOU'RE READY 
+** TO SERVE THE REACT BUILD
+*/
 
 // serve static assets from client
 // app.use(express.static(path.join(__dirname, 'client/build')))
