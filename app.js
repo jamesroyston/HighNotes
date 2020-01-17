@@ -204,60 +204,72 @@ app.post('/api/newnote', function (req, res) {
         user.notes.push(note)
         console.log(user.notes)
         user.save()
-        res.send(`user notes updated. here's the notes: ${user.note}`)
+        res.json({
+            user: user.username,
+            notes: user.notes
+        })
 
     }
     )
 })
 
 // POST share note with other user after a GET for all users
-app.patch('/api/share/:noteId', async function (req, res) {
+app.post('/api/share/:noteId', function (req, res) {
     const targetUser = '5e1b496b492c7e2f1480f2f8'
-    let targetNote = {}
+    let newNoteBasedOnSharedNote = {}
+
+    let sender = User.findById(req.session.userId)
+    let recipient = User.findById(targetUser);
     // find logged in user
-    try {
-        await User.findById(req.session.userId)
-            .exec(function (error, user) {
-                if (error) {
-                    return next(error);
+
+    sender.exec(async function (error, user) {
+        try {
+            if (error) {
+                return next(error);
+            } else {
+                if (user === null) {
+                    var err = new Error('Not authorized! Go back!');
+                    err.status = 400;
+                    return next(err);
                 } else {
-                    if (user === null) {
-                        var err = new Error('Not authorized! Go back!');
-                        err.status = 400;
-                        return next(err);
-                    } else {
-                        // copy notes array and find the note to share by filtering with noteId
-                        const localArr = [...user.notes]
-                        targetNote = localArr.filter(note => note._id.toString() === req.params.noteId.toString())[0]
-                        console.log('dlvey ', typeof targetNote, targetNote)
+                    // copy notes array and find the note to share by filtering with noteId
+                    const localArr = [...user.notes]
+                    const { title, description } = await localArr.filter(note => note._id.toString() === req.params.noteId.toString())[0]
+                    newNoteBasedOnSharedNote = {
+                        title,
+                        description
                     }
+                    console.log('new note based on old note', newNoteBasedOnSharedNote)
+                    await recipient.exec(function (error, user) {
+                        if (error) {
+                            return next(error);
+                        } else {
+                            if (user === null) {
+                                var err = new Error('Not authorized! Go back!');
+                                err.status = 400;
+                                return next(err);
+                            } else {
+                                // update their notes array with our note
+                                console.log('copy', newNoteBasedOnSharedNote)
+                                // user.notes = []
+                                const note = new Note(newNoteBasedOnSharedNote)
+                                user.notes.push(note)
+                                console.log(user.notes)
+                                user.save()
+                            }
+                        }
+                        res.json({
+                            user: user.username,
+                            notes: user.notes
+                        })
+                    })
                 }
-            })
-        await console.log(targetNote)
-        // find target user 
-        await User.findById(targetUser)
-            .exec(function (error, user) {
-                if (error) {
-                    return next(error);
-                } else {
-                    if (user === null) {
-                        var err = new Error('Not authorized! Go back!');
-                        err.status = 400;
-                        return next(err);
-                    } else {
-                        // update their notes array with our note
-                        user.notes = [...user.notes, targetNote]
-                        // console.log(user.notes)
-                        // console.log(targetNote)
-                        user.save()
-                        res.json(user)
-                    }
-                }
-            })
-    } catch (err) {
-        res.json(err)
-        console.log('here', err)
-    }
+            }
+        } catch (e) {
+            res.json({ error: e })
+        }
+
+    })
 })
 
 // PATCH update 
