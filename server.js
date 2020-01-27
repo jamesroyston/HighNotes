@@ -15,6 +15,12 @@ app.use(cors())
 app.use(express.json())
 app.use(cookieParser())
 
+const isAuthenticated = (req, res, next) => {
+  if (req.session.userId || req.session.isAuthenticated) {
+    return next()
+  }
+}
+
 // import models
 const { User } = require('./models/user.schema')
 const { Note } = require('./models/user.schema')
@@ -61,7 +67,6 @@ app.post('/api/signup', async (req, res) => {
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body
   User.findOne({ username }, function (err, user) {
-    console.log(user)
     if (err) {
       console.error(err)
       return res.status(500)
@@ -90,10 +95,13 @@ app.post('/api/login', (req, res) => {
       } else {
         // log them in, update session with user._id
         req.session.userId = user._id
+        req.session.username = user.username
+        req.isAuthenticated = true
         res.status(200).json({
-          sameVal: `isSamePassword value: ${isSamePassword}`,
-          response: `user: ${user.username} logged in successfully`
+          isAuthenticated: isAuthenticated,
+          username: user.username
         })
+
       }
     })
   })
@@ -101,7 +109,7 @@ app.post('/api/login', (req, res) => {
 
 
 // GET username / profile if logged in
-app.get('/api/profile', async (req, res, next) => {
+app.get('/api/profile', isAuthenticated, (req, res, next) => {
   User.findById(req.session.userId)
     .exec(function (error, user) {
       if (error) {
@@ -120,7 +128,8 @@ app.get('/api/profile', async (req, res, next) => {
           const deleted = localArr.filter(note => {
             return note.deleted === false
           })
-          res.json({
+          res.status(200).json({
+            isAuthenticated: isAuthenticated,
             username: user.username,
             notes: {
               length: notes.length,
@@ -154,29 +163,10 @@ app.get('/api/showallusers', function (req, res) {
 
 // GET logout 
 app.get('/api/logout', function (req, res, next) {
-  console.log(req.session)
   if (req.session) {
     // delete session object
-    req.session.destroy(function (err) {
-      if (err) {
-        return next(err)
-      } else {
-        return User.findById(req.session.userId)
-          .exec(function (error, user) {
-            if (error) {
-              return next(error);
-            } else {
-              if (user === null) {
-                var err = new Error('Not authorized! Go back!');
-                err.status = 400;
-                return next(err);
-              } else {
-                return res.send(`user: ${user.username}`)
-              }
-            }
-          })
-      }
-    })
+    req.session.destroy()
+    res.send('user logged out')
   }
 })
 
