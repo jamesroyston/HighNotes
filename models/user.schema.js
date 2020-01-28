@@ -1,7 +1,15 @@
 const mongoose = require('mongoose')
 const bcrypt = require('bcryptjs')
+const mongooseDelete = require('mongoose-delete')
 
 const saltRounds = 10
+
+const NoteSchema = new mongoose.Schema({
+    title: String,
+    description: String,
+}, {timestamps: true})
+
+NoteSchema.plugin(mongooseDelete)
 
 const UserSchema = new mongoose.Schema({
     username: {
@@ -13,7 +21,7 @@ const UserSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    notes: []
+    notes: [NoteSchema]
 })
 
 UserSchema.pre('save', function(next) {
@@ -53,4 +61,13 @@ UserSchema.methods.isCorrectPassword = function(password, cb) {
     })
 }
 
-module.exports = mongoose.model('User', UserSchema)
+UserSchema.methods.delete = function() {
+    NoteSchema.delete()
+}
+
+const User = mongoose.model('User', UserSchema)
+const Note = mongoose.model('Note', NoteSchema)
+module.exports = {
+    User: User,
+    Note: Note
+}

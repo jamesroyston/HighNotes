@@ -1,25 +1,45 @@
 import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import HeaderNav from './components/HeaderNav/HeaderNav'
+import NoteSection from './components/NoteSection/NoteSection'
+import Login from './components/HeaderNav/Login/Login'
+import SignUp from './components/HeaderNav/SignUp/SignUp'
+import Logout from './components/HeaderNav/Logout/Logout'
+import ProtectedRoute from './components/ProtectedRoute'
+import { AuthProvider } from './contexts/AuthContext'
+import {
+  BrowserRouter as Router,
+  Switch,
+  Route,
+  Redirect
+} from 'react-router-dom'
 
 function App() {
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <Router>
+      <AuthProvider>
+
+        <div className="App">
+          <HeaderNav />
+          <Switch>
+            <Route path="/login">
+              <Login />
+            </Route>
+            <Route path="/signup">
+              <SignUp />
+            </Route>
+            <Route path="/logout">
+              <Logout />
+            </Route>
+            <Route exact path="/">
+              <Redirect to="/login" />
+            </Route>
+            <ProtectedRoute path="/profile" component={NoteSection} />
+          </Switch>
+
+        </div>
+      </AuthProvider>
+    </Router>
   );
 }
 
