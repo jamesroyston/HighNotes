@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import HeaderNav from './components/HeaderNav/HeaderNav'
 import NoteSection from './components/NoteSection/NoteSection'
 import Login from './components/HeaderNav/Login/Login'
 import SignUp from './components/HeaderNav/SignUp/SignUp'
+import Logout from './components/HeaderNav/Logout/Logout'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './contexts/AuthContext'
 import {
   BrowserRouter as Router,
   Switch,
   Route,
-  Link
+  Redirect
 } from 'react-router-dom'
 
 function App() {
@@ -27,10 +28,13 @@ function App() {
             <Route path="/signup">
               <SignUp />
             </Route>
-            <Route path="logout">
-              <Login />
+            <Route path="/logout">
+              <Logout />
             </Route>
-            <ProtectedRoute path="/" component={NoteSection} />
+            <Route exact path="/">
+              <Redirect to="/login" />
+            </Route>
+            <ProtectedRoute path="/profile" component={NoteSection} />
           </Switch>
 
         </div>

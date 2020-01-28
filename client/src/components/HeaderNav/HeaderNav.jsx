@@ -1,7 +1,6 @@
 import React, { useState, useContext } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, withRouter } from 'react-router-dom'
 import { AuthContext } from '../../contexts/AuthContext'
-import { useEffect } from 'react'
 
 const HeaderNav = (props) => {
 
@@ -10,10 +9,15 @@ const HeaderNav = (props) => {
   const [collapse, setCollapse] = useState(true)
 
   const toggleCollapse = () => setCollapse(!collapse)
+  const handleLogoutClick = async () => {
+    await logout()
+    await setCollapse(true)
+    await props.history.push('/logout')
+  }
 
   const navLinks = (
     isAuth ? <li className="nav-item">
-      <Link onClick={() => { logout(); setCollapse(true) }} className="nav-link" to="/logout">Logout</Link>
+      <Link onClick={handleLogoutClick} className="nav-link" to="/logout">Logout</Link>
     </li> :
       <>
         <li className="nav-item">
@@ -26,7 +30,7 @@ const HeaderNav = (props) => {
   )
 
   return (
-    <nav className="navbar navbar-expand-lg navbar-light bg-light">
+    <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
       <Link className="navbar-brand" to="/">HighNotes</Link>
       <button onClick={toggleCollapse} className="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarText" aria-controls="navbarText" aria-expanded="false" aria-label="Toggle navigation">
         <span className="navbar-toggler-icon"></span>
@@ -41,4 +45,4 @@ const HeaderNav = (props) => {
   );
 }
 
-export default HeaderNav;
+export default withRouter(HeaderNav)

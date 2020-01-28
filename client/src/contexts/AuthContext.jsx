@@ -1,39 +1,64 @@
 import React, { useState, createContext } from 'react'
-import { Redirect } from 'react-router-dom'
 import axios from 'axios'
-import { useEffect } from 'react'
 
 const AuthContext = createContext()
 
 const AuthProvider = (props) => {
   const [isAuth, setIsAuth] = useState(false)
-  const [user, setUser] = useState('')
-  // do i want to store userID from backend call in here?
+  const [sessionChecking, setSessionChecking] = useState(true)
 
-  const login = (user, pass, next) => {
+  const signup = (user, pass) => {
+    axios.post('api/signup', { username: user, password: pass })
+      .then(res => {
+        if (res.status === 200) {
+          console.log('registration success!')
+        }
+      })
+      .then(() => login(user, pass))
+      .catch(err => err)
+  }
+
+  const login = (user, pass) => {
     axios.post('api/login', { username: user, password: pass })
       .then(res => {
         if (res.status === 200 || res.data.isAuthenticated === true) {
-          setIsAuth(true)
-        }
-      })
-      .catch(err => console.log(err))  
-    }
-
-  const logout = () => {
-    axios.get('api/logout')
-      .then(res => {
-        if (res.status === 200) {
-          setIsAuth(false)
-          setUser('')
+          return setIsAuth(true)
         }
       })
       .catch(err => console.log(err))
   }
+
+  const logout = () => {
+    // debugger
+    axios.get('api/logout')
+      .then(res => {
+        if (res.status === 200 || res.status === 304) {
+          setIsAuth(false)
+          console.log('logged out....')
+        }
+      })
+      .catch(err => console.log(err))
+  }
+
+  const sessionCheck = () => {
+    return axios.get('api/sessioncheck')
+      .then(res => {
+        if (res.status === 200 || res.data.isAuthenticated === true || res.data.username) {
+          setIsAuth(true)
+          setSessionChecking(false)
+        }
+        if (res.status === 404) {
+          setIsAuth(false)
+          setSessionChecking(false)
+        }
+      })
+      .catch(err => console.log(err))
+  }
+
   return (
     <AuthContext.Provider
       value={{
-        isAuth, setIsAuth, login, logout
+        isAuth, setIsAuth, login, logout, sessionCheck, sessionChecking, signup
       }}
     >
       {props.children}

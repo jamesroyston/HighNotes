@@ -11,3 +11,19 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+textarea { 
+ resize: vertical;
+ max-height: 6em;
+}
+
+input#title {
+  padding-left: 0.7em;
+}
+
+button {
+  margin-right: 0.3em !important;
+  margin-bottom: 0.5em !important;
+  margin-top: 0.3em !important;
+  outline: none !important;
+}
