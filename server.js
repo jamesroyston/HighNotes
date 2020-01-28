@@ -15,6 +15,12 @@ app.use(cors())
 app.use(express.json())
 app.use(cookieParser())
 
+const isAuthenticated = (req, res, next) => {
+  if (req.session.userId || req.session.isAuthenticated) {
+    return next()
+  }
+}
+
 // import models
 const { User } = require('./models/user.schema')
 const { Note } = require('./models/user.schema')
@@ -41,16 +47,15 @@ app.use(session({
 app.post('/api/signup', async (req, res) => {
   console.log(req.body)
   const { username, password } = req.body
-  console.log('asdfasdf', req.body)
   const user = new User({ username, password })
   try {
     await user.save().catch(err => {
       throw err;
     })
-    res.status(200).json('registration successful')
+    res.status(200).send('registration successful')
   } catch (err) {
     if (err.toString() === 'Error: There was a duplicate key error') {
-      res.status(200).json({ error: "duplicate username, maybe try resetting your password" })
+      res.status(302).json({ error: "duplicate username, maybe try resetting your password" })
     } else {
       res.status(500).json({ error: `internal error, ${err}` })
     }
@@ -61,7 +66,6 @@ app.post('/api/signup', async (req, res) => {
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body
   User.findOne({ username }, function (err, user) {
-    console.log(user)
     if (err) {
       console.error(err)
       return res.status(500)
@@ -90,18 +94,32 @@ app.post('/api/login', (req, res) => {
       } else {
         // log them in, update session with user._id
         req.session.userId = user._id
+        req.session.username = user.username
+        req.session.isAuthenticated = true
         res.status(200).json({
-          sameVal: `isSamePassword value: ${isSamePassword}`,
-          response: `user: ${user.username} logged in successfully`
+          isAuthenticated: isAuthenticated,
+          username: user.username
         })
+
       }
     })
   })
 })
 
+// GET still auth
+app.get('/api/sessioncheck', (req, res) => {
+  if (req.session.userId || req.session.isAuthenticated) {
+    return res.status(200).json({
+      isAuthenticated: req.session.isAuthenticated,
+      username: req.session.username
+    })
+  }
+  res.sendStatus(404)
+})
+
 
 // GET username / profile if logged in
-app.get('/api/profile', async (req, res, next) => {
+app.get('/api/profile', isAuthenticated, (req, res, next) => {
   User.findById(req.session.userId)
     .exec(function (error, user) {
       if (error) {
@@ -114,13 +132,14 @@ app.get('/api/profile', async (req, res, next) => {
         } else {
           const localArr = [...user.notes]
           const notes = localArr.filter(note => {
-            return note.deleted === true
-          })
+            return note.deleted === false
+          }).reverse()
 
           const deleted = localArr.filter(note => {
-            return note.deleted === false
-          })
-          res.json({
+            return note.deleted === true
+          }).reverse()
+          res.status(200).json({
+            isAuthenticated: isAuthenticated,
             username: user.username,
             notes: {
               length: notes.length,
@@ -137,51 +156,34 @@ app.get('/api/profile', async (req, res, next) => {
 })
 
 // GET all users
-app.get('/api/showallusers', function (req, res) {
+app.get('/api/showallusers', isAuthenticated, function (req, res) {
   if (req.session) {
     User.find({}, function (err, users) {
-      var userMap = {};
+      let userArray = []
 
       users.forEach(function (user) {
-        userMap[user._id] = user.username;
-      });
+        userArray.push({
+          username: user.username,
+          userId: user._id
+        })
+      })
 
-      res.send(userMap);
+      res.json({ users: [...userArray] })
     });
   }
   if (!req.session) res.send('sorry, you must log in to see other users')
 })
 
 // GET logout 
-app.get('/api/logout', function (req, res, next) {
-  console.log(req.session)
-  if (req.session) {
-    // delete session object
-    req.session.destroy(function (err) {
-      if (err) {
-        return next(err)
-      } else {
-        return User.findById(req.session.userId)
-          .exec(function (error, user) {
-            if (error) {
-              return next(error);
-            } else {
-              if (user === null) {
-                var err = new Error('Not authorized! Go back!');
-                err.status = 400;
-                return next(err);
-              } else {
-                return res.send(`user: ${user.username}`)
-              }
-            }
-          })
-      }
-    })
-  }
+app.get('/api/logout', isAuthenticated, async function (req, res, next) {
+  await req.session.destroy()
+  await res.sendStatus(200)
+  return
 })
 
 // POST new note to user
-app.post('/api/newnote', function (req, res) {
+app.post('/api/newnote', isAuthenticated, function (req, res) {
+  console.log(req.body.title, req.body.description)
   const { title, description } = req.body
   const user = User.findById(req.session.userId)
   user.exec(function (error, user) {
@@ -205,7 +207,7 @@ app.post('/api/newnote', function (req, res) {
     user.save()
     res.json({
       user: user.username,
-      notes: user.notes
+      notes: user.notes.reverse()
     })
 
   }
@@ -213,8 +215,13 @@ app.post('/api/newnote', function (req, res) {
 })
 
 // POST share note with other user after a GET for all users
-app.post('/api/share/:noteId', function (req, res) {
-  const targetUser = '5e1b496b492c7e2f1480f2f8'
+app.post('/api/share', isAuthenticated, function (req, res) {
+  console.log(req.body.userId, req.body.noteId)
+  if (!req.body.userId || !req.body.noteId) {
+    return res.sendStatus(404).send('error: missing noteId or userId')
+  }
+  const targetUser = req.body.userId
+  const noteToShareId = req.body.noteId
   let newNoteBasedOnSharedNote = {}
 
   let sender = User.findById(req.session.userId)
@@ -233,7 +240,7 @@ app.post('/api/share/:noteId', function (req, res) {
         } else {
           // copy notes array and find the note to share by filtering with noteId
           const localArr = [...user.notes]
-          const { title, description } = await localArr.filter(note => note._id.toString() === req.params.noteId.toString())[0]
+          const { title, description } = await localArr.filter(note => note._id.toString() === noteToShareId.toString())[0]
           newNoteBasedOnSharedNote = {
             title,
             description
@@ -271,14 +278,13 @@ app.post('/api/share/:noteId', function (req, res) {
   })
 })
 
-// PATCH update 
-// copy/paste from soft-delete function currently....
-app.patch('/api/:noteId', async function (req, res) {
-  console.log(req.params)
+// DELETE notes
+app.patch('/api/delete', isAuthenticated, async function (req, res) {
+  const { noteId } = req.body
   if (req.session) {
     User.findById(req.session.userId, function (err, user) {
       if (err) {
-        return res.json({ err: err, gay: 'yup' })
+        return res.json({ err: err })
       }
       if (user === null) {
         let err = new Error('Not logged in!!')
@@ -287,28 +293,41 @@ app.patch('/api/:noteId', async function (req, res) {
       }
       console.log('length before', user.notes.length)
       user.notes.map(note => {
-        if (note._id.toString() === req.params.noteId.toString()) {
+        if (note._id.toString() === noteId.toString()) {
           note.deleted = !note.deleted
-          // Note.delete() doesn't want to work-- the frontend engineer in me says leave it be so....byeeee
         }
       })
-      console.log('length after', user.notes.length)
+      const localArr = [...user.notes]
+      const notes = localArr.filter(note => {
+        return note.deleted === false
+      }).reverse()
 
+      const deleted = localArr.filter(note => {
+        return note.deleted === true
+      }).reverse()
       user.save()
-      res.send(`user note deleted`)
+      res.status(200).json({
+        username: user.username,
+        notes: {
+          length: notes.length,
+          notes: notes
+        },
+        deleted: {
+          length: deleted.length,
+          notes: deleted
+        }
+      })
     })
   }
 })
 
-// PATCH soft-delete notes
-app.patch('/api/:noteId', async function (req, res) {
-  console.log(req.params)
+// RESTORE notes
+app.patch('/api/restore', isAuthenticated, async function (req, res) {
+  const { noteId } = req.body
   if (req.session) {
-
     User.findById(req.session.userId, function (err, user) {
-
       if (err) {
-        return res.json({ err: err, gay: 'yup' })
+        return res.json({ err: err })
       }
       if (user === null) {
         let err = new Error('Not logged in!!')
@@ -317,15 +336,30 @@ app.patch('/api/:noteId', async function (req, res) {
       }
       console.log('length before', user.notes.length)
       user.notes.map(note => {
-        if (note._id.toString() === req.params.noteId.toString()) {
+        if (note._id.toString() === noteId.toString()) {
           note.deleted = !note.deleted
-          // Note.delete() doesn't want to work-- the frontend engineer in me says leave it be so....byeeee
         }
       })
-      console.log('length after', user.notes.length)
+      const localArr = [...user.notes]
+      const notes = localArr.filter(note => {
+        return note.deleted === false
+      }).reverse()
 
+      const deleted = localArr.filter(note => {
+        return note.deleted === true
+      }).reverse()
       user.save()
-      res.send(`user note deleted`)
+      res.status(200).json({
+        username: user.username,
+        notes: {
+          length: notes.length,
+          notes: notes
+        },
+        deleted: {
+          length: deleted.length,
+          notes: deleted
+        }
+      })
     })
   }
 })
@@ -335,12 +369,12 @@ app.patch('/api/:noteId', async function (req, res) {
 ** TO SERVE THE REACT BUILD
 */
 
-// serve static assets from client
-// app.use(express.static(path.join(__dirname, 'client/build')))
+// **serve static assets from client
+app.use(express.static(path.join(__dirname, 'client/build')))
 
-// serve index.html from client build folder
-// app.get('*', (req, res) => {
-//   res.sendFile(path.join(__dirname + '/client/build/index.html'))
-// })
+// **serve index.html from client build folder
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname + '/client/build/index.html'))
+})
 
 app.listen(process.env.PORT, () => console.log(`listening on port ${process.env.PORT}`))
