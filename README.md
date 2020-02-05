@@ -1,4 +1,4 @@
-# notes-ittybam-challenge
+# A note taking application.
 
 Instructions for running locally:
 
